@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-    {name = "ruixli", email = ""}
+    {name = "ruixli", email = "ruixli@example.com"}
 ]
 keywords = [
     "calcium imaging",
@@ -33,12 +33,6 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Scientific/Engineering :: Image Recognition",
 ]
-
-[project.urls]
-Homepage = "https://github.com/ruixli/pupil_track"
-Repository = "https://github.com/ruixli/pupil_track"
-Issues = "https://github.com/ruixli/pupil_track/issues"
-Documentation = "https://github.com/ruixli/pupil_track#readme"
 
 dependencies = [
     "torch>=2.0.0",
