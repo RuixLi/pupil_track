@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Project outputs
+output/
+*.pth
+*.npy
+*.onnx
+
+model/
+*.pth
+
+# Data files (videos, images — too large for git)
+*.avi
+*.mp4
+*.mkv
+*.mov
+
+# Logs
+*.log
+debug.log
