@@ -1712,7 +1712,7 @@ class TrainingPage(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self, video_path: str | None = None, output_dir: str = "./output"):
         super().__init__()
-        self.setWindowTitle("PupilTrack Pipeline")
+        self.setWindowTitle("Pupil Track GUI")
         self.resize(1800, 1500)
 
         self.pupil = Pupil(output_dir=output_dir)
