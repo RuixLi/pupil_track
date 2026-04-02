@@ -9,6 +9,37 @@ description = "Python tool for pupil tracking and segmentation with U-Net archit
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
+authors = [
+    {name = "ruixli", email = ""}
+]
+keywords = [
+    "calcium imaging",
+    "pupil tracking",
+    "eye tracking",
+    "neuroscience",
+    "computer vision",
+    "segmentation",
+    "u-net",
+    "deep learning",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+]
+
+[project.urls]
+Homepage = "https://github.com/ruixli/pupil_track"
+Repository = "https://github.com/ruixli/pupil_track"
+Issues = "https://github.com/ruixli/pupil_track/issues"
+Documentation = "https://github.com/ruixli/pupil_track#readme"
+
 dependencies = [
     "torch>=2.0.0",
     "numpy>=1.23.5",

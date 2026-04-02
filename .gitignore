@@ -25,11 +25,10 @@ desktop.ini
 # Project outputs
 output/
 *.pth
+!model/*.pth
 *.npy
 *.onnx
 
-model/
-*.pth
 
 # Data files (videos, images — too large for git)
 *.avi

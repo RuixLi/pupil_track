@@ -1,5 +1,9 @@
 # pupil_track
 
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub](https://img.shields.io/badge/github-ruixli%2Fpupil__track-blue)](https://github.com/ruixli/pupil_track)
+
 Python package for mouse pupil segmentation in videos. Supports multiple detection methods (U-Net, integrodifferential operator, starburst) with both a script-based workflow and an interactive PyQt5 GUI.
 
 ## Features
@@ -33,11 +37,9 @@ Python package for mouse pupil segmentation in videos. Supports multiple detecti
 Open a terminal (Anaconda Prompt on Windows) and run:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/pupil_track.git
+git clone https://github.com/ruixli/pupil_track.git
 cd pupil_track
 ```
-
-**Note:** Replace `YOUR_USERNAME` with the actual repository owner's GitHub username.
 
 #### 2. Create a conda environment
 
@@ -95,6 +97,12 @@ pip install .
 pip install ".[gui]"
 ```
 
+**Development installation (editable mode):**
+
+```bash
+pip install -e ".[gui,dev]"
+```
+
 #### 5. Verify installation
 
 ```bash
@@ -102,10 +110,31 @@ python -c "import pupil_track; print('pupil_track version:', pupil_track.__versi
 pupil-track --help
 ```
 
+---
+
+### Direct Install from GitHub (Without Cloning)
+
+Install directly from GitHub without cloning the repository:
+
+```bash
+# Create environment
+conda create -n pupil_track python=3.10 -y
+conda activate pupil_track
+
+# Install PyTorch
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+
+# Install pupil_track with GUI
+pip install "git+https://github.com/ruixli/pupil_track.git#egg=pupil-track[gui]"
+```
+
+**Note:** You'll need to download the pre-trained model separately. See [Quick start](#quick-start) section.
+```
+
 ### Quick Installation (Advanced Users)
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/pupil_track.git
+git clone https://github.com/ruixli/pupil_track.git
 cd pupil_track
 conda create -n pupil_track python=3.10 -y
 conda activate pupil_track
@@ -167,6 +196,27 @@ All dependencies are automatically installed when you run `pip install .` or `pi
 
 **Import errors after installation**
 - Try reinstalling: `pip install --force-reinstall .`
+
+## Pre-trained Model
+
+The repository includes a pre-trained U-Net model for mouse pupil segmentation:
+
+- **Location:** `model/base_model_260402_8562.pth`
+- **Performance:** Dice coefficient of 0.8586 on validation set
+- **Input size:** 128×128 pixels
+- **Training data:** Mouse eye videos with manual annotations
+
+To use the pre-trained model in your code:
+
+```python
+from pupil_track import Pupil
+
+p = Pupil(video_path="your_video.avi", output_dir="./results", input_size=128)
+p.model_path = "model/base_model_260402_8562.pth"
+# Or use a custom path to your own trained model
+```
+
+For custom datasets with different animals or imaging conditions, you may need to fine-tune or retrain the model using the annotation and training tools provided.
 
 ## Quick start
 
