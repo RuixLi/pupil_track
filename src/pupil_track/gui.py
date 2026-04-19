@@ -4,14 +4,16 @@ Launch with:  python -m pupil_track gui
          or:  python run_demo.py
 """
 
+# import faulthandler  # debug: re-enable with the diagnostic block below
 import logging
+# import os  # debug: re-enable with the diagnostic block below
 import sys
 import traceback
 from pathlib import Path
 
 import cv2
 import numpy as np
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
+from PyQt5.QtCore import Qt, QObject, QThread, pyqtSignal, pyqtSlot, QTimer
 from PyQt5.QtGui import QColor, QImage, QPixmap, QPainter, QPen
 from PyQt5.QtWidgets import (
     QApplication,
@@ -45,6 +47,39 @@ from PyQt5.QtWidgets import (
 from .pupil import Pupil
 
 logger = logging.getLogger(__name__)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Silent-crash diagnostics (disabled). Re-enable this block + the `faulthandler`
+# and `os` imports above to capture native fatal errors and all log records to
+# <cwd>/pupil_track_gui.log if another silent crash ever appears.
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# _GUI_LOG_PATH = Path.cwd() / "pupil_track_gui.log"
+# try:
+#     _GUI_LOG_FH = open(_GUI_LOG_PATH, "a", buffering=1, encoding="utf-8")
+#     faulthandler.enable(file=_GUI_LOG_FH, all_threads=True)
+#     _root = logging.getLogger()
+#     _root.setLevel(logging.INFO)
+#     _already = any(
+#         isinstance(h, logging.FileHandler)
+#         and getattr(h, "baseFilename", None) == str(_GUI_LOG_PATH.resolve())
+#         for h in _root.handlers
+#     )
+#     if not _already:
+#         _fh = logging.FileHandler(_GUI_LOG_PATH, mode="a", encoding="utf-8")
+#         _fh.setFormatter(logging.Formatter(
+#             "%(asctime)s %(levelname)s %(name)s: %(message)s"
+#         ))
+#         _root.addHandler(_fh)
+#     sys.stderr.write(
+#         f"\n[pupil_track.gui] diagnostic log -> {_GUI_LOG_PATH.resolve()}\n"
+#         f"[pupil_track.gui] pid={os.getpid()} module={__file__}\n\n"
+#     )
+#     sys.stderr.flush()
+#     logger.info("gui module imported  pid=%d  file=%s", os.getpid(), __file__)
+# except Exception as _e:
+#     sys.stderr.write(f"[pupil_track.gui] failed to set up diagnostic log: {_e}\n")
+#     sys.stderr.flush()
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Dark theme
@@ -363,17 +398,37 @@ class AnnotationCanvas(QWidget):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-class QTextEditLogHandler(logging.Handler):
-    """Redirect log messages to a QTextEdit widget."""
+class QTextEditLogHandler(QObject, logging.Handler):
+    """Thread-safe log handler: marshals records to the GUI thread via a Qt signal.
+
+    Qt widgets may only be touched from the thread that owns them (the main
+    GUI thread). Writing to the QTextEdit directly from a worker QThread —
+    e.g. from log calls inside training — causes occasional access-violation
+    crashes on Windows. Emitting a signal queues the slot to the handler's
+    thread (which is the GUI thread, since the handler is created there), so
+    cross-thread log records are safe.
+    """
+
+    _message_ready = pyqtSignal(str)
 
     def __init__(self, widget: QTextEdit):
-        super().__init__()
+        QObject.__init__(self)
+        logging.Handler.__init__(self)
         self._widget = widget
+        self._message_ready.connect(self._append_on_gui_thread)
 
     def emit(self, record):
-        msg = self.format(record)
+        try:
+            msg = self.format(record)
+        except Exception:
+            self.handleError(record)
+            return
+        # Cross-thread-safe: queued connection when called off the GUI thread.
+        self._message_ready.emit(msg)
+
+    @pyqtSlot(str)
+    def _append_on_gui_thread(self, msg: str):
         self._widget.append(msg)
-        # auto-scroll
         sb = self._widget.verticalScrollBar()
         sb.setValue(sb.maximum())
 
@@ -1907,6 +1962,7 @@ class MainWindow(QMainWindow):
 
 def launch_gui(video_path: str | None = None, output_dir: str = "./output"):
     """Launch the PupilTrack GUI application."""
+    # logger.info("launch_gui() called  video=%s  output_dir=%s", video_path, output_dir)  # debug
     app = QApplication(sys.argv)
     app.setStyleSheet(DARK_STYLE)
     window = MainWindow(video_path=video_path, output_dir=output_dir)
