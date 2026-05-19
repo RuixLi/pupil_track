@@ -65,6 +65,7 @@ class Pupil:
         self.masks: dict[str, dict[int, np.ndarray]] = {}
         self.results: dict[str, tuple[np.ndarray, np.ndarray]] = {}
         self.label_frames: list[tuple[int, np.ndarray]] = []
+        self._cached_full_frames: Optional[dict[int, np.ndarray]] = None  # Cache for avoiding re-decoding
 
         if video_path is not None:
             self.load_video(video_path)
@@ -209,6 +210,38 @@ class Pupil:
             frames.append((idx, self.crop_frame(frame)))
         return frames
 
+    def _load_frames_bulk(
+        self, frame_indices: np.ndarray | None, n_default: int = 30
+    ) -> tuple[list[tuple[int, np.ndarray]], dict[int, np.ndarray]]:
+        """Bulk load entire video into memory, then extract ROI crops for maximum speed.
+        
+        Returns:
+            tuple of (cropped_frames_for_detection, full_frames_for_export)
+        """
+        if frame_indices is None:
+            frame_indices = self.get_sample_indices(n_default)
+        
+        logger.info(f"Optimized bulk loading {len(frame_indices)} frames...")
+        
+        # Use optimized bulk reading from VideoReader
+        all_frames = self.reader.read_all_frames(frame_indices)
+        
+        logger.info(f"Extracting {len(frame_indices)} ROI crops from memory...")
+        
+        # Extract ROI crops from in-memory frames (pure memory operations)
+        cropped_frames = []
+        for idx in frame_indices:
+            if idx in all_frames:
+                cropped = self.crop_frame(all_frames[idx])
+                cropped_frames.append((idx, cropped))
+        
+        logger.info(f"Prepared {len(cropped_frames)} cropped frames for detection")
+        
+        # Store full frames for later video export (avoid re-decoding)
+        self._cached_full_frames = all_frames
+        
+        return cropped_frames, all_frames
+
     def _stream_frames(
         self, frame_indices: np.ndarray | None, n_default: int = 30
     ):
@@ -253,10 +286,10 @@ class Pupil:
                 raise RuntimeError("No model path set. Train first or set model_path.")
             from .detectors.unet_detect import detect_unet
 
-            # Stream frames to keep memory constant
-            stream = self._stream_frames(frame_indices)
+            # Bulk load entire video + extract ROI crops for maximum speed
+            frames, full_frames = self._load_frames_bulk(frame_indices)
             masks = detect_unet(
-                stream,
+                frames,
                 model_path=str(self.model_path),
                 threshold=kwargs.get("threshold", self.config.threshold),
             )
@@ -403,13 +436,21 @@ class Pupil:
         paths["plot"] = plot_path
         logger.info("Saved plot: %s", plot_path)
 
-        # Preview video
+        # Preview video (use cached frames to avoid re-decoding)
         from .visualize import export_video
         video_path = self.output_dir / f"{stem}_preview_{method}.mp4"
+        
+        # Use cached full frames if available, otherwise fallback to re-reading
+        preloaded_frames = getattr(self, '_cached_full_frames', None)
+        if preloaded_frames is not None:
+            logger.info("Using cached frames for video export - no re-decoding needed")
+        else:
+            logger.info("No cached frames available - will re-decode video (slower)")
+            
         export_video(
             self.reader.path, str(video_path), smoothed,
             masks=masks, roi=self.roi, input_size=self.input_size,
-            fps=self.config.export_fps,
+            fps=self.config.export_fps, preloaded_frames=preloaded_frames,
         )
         paths["preview_video"] = video_path
         logger.info("Saved preview video: %s", video_path)

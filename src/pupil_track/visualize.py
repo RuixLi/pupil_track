@@ -181,19 +181,40 @@ def export_video(
     roi: dict | None = None,
     input_size: int = 128,
     fps: int = 30,
+    preloaded_frames: dict[int, np.ndarray] | None = None,
 ):
-    """Export annotated video with fitted ellipse and centroid overlays."""
+    """Export annotated video with fitted ellipse and centroid overlays.
+    
+    Args:
+        preloaded_frames: Optional dict of frame_index -> full_frame to avoid re-decoding
+    """
     from .video_io import VideoReader
 
-    reader = VideoReader(video_path)
+    # Use preloaded frames if available, otherwise re-read video
+    if preloaded_frames is not None:
+        logger.info(f"Using preloaded frames for video export - no re-decoding needed")
+        frame_indices = sorted(preloaded_frames.keys())
+        n_frames = len(frame_indices)
+    else:
+        logger.info(f"Re-reading video for export (slower)")
+        reader = VideoReader(video_path)
+        frame_indices = range(reader.n_frames)
+        n_frames = reader.n_frames
+
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     writer = cv2.VideoWriter(str(output_path), fourcc, fps, (input_size, input_size), isColor=True)
 
-    for idx in range(reader.n_frames):
-        frame = reader.read_frame(idx)
+    for idx in frame_indices:
+        # Get frame from preloaded cache or read from video
+        if preloaded_frames is not None:
+            frame = preloaded_frames[idx]
+        else:
+            frame = reader.read_frame(idx)
+            
         if frame is None:
             continue
 
+        # Apply ROI crop and resize
         if roi is not None:
             x, y, w, h = roi["x"], roi["y"], roi["w"], roi["h"]
             frame = frame[y : y + h, x : x + w]
@@ -215,5 +236,6 @@ def export_video(
         writer.write(display)
 
     writer.release()
-    reader.close()
+    if preloaded_frames is None:
+        reader.close()
     logger.info(f"Annotated video exported to {output_path}")
