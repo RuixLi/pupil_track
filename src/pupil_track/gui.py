@@ -34,6 +34,7 @@ from PyQt5.QtWidgets import (
     QProgressBar,
     QPushButton,
     QRadioButton,
+    QScrollArea,
     QSlider,
     QSpinBox,
     QSplitter,
@@ -85,57 +86,112 @@ logger = logging.getLogger(__name__)
 # Dark theme
 # ═══════════════════════════════════════════════════════════════════════════════
 
-DARK_STYLE = """
-* { font-size: 30px; font-family: "Segoe UI"; }
-QMainWindow, QWidget { background-color: #1e1e1e; color: #d4d4d4; }
-QGroupBox {
-    border: 1px solid #3d3d3d; border-radius: 4px; margin-top: 10px;
-    padding-top: 14px; font-weight: bold;
-}
-QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }
-QPushButton {
+GUI_SCALE = 1.0
+
+
+def scaled_px(value: float, scale: float, minimum: int = 1) -> int:
+    """Scale a pixel measurement while keeping tiny controls usable."""
+    return max(minimum, int(round(value * scale)))
+
+
+def gui_scale_for_screen(width: int, height: int) -> float:
+    """Return UI scale relative to the 4K layout the GUI was tuned for."""
+    if width <= 0 or height <= 0:
+        return 1.0
+    scale = min(width / 3840, height / 2160)
+    return max(0.65, min(1.0, scale))
+
+
+def window_size_for_screen(width: int, height: int, scale: float) -> tuple[int, int]:
+    """Choose an initial window size that fits within the screen work area."""
+    max_w = max(1, int(width * 0.9))
+    max_h = max(1, int(height * 0.9))
+    min_w = min(1100, max_w)
+    min_h = min(750, max_h)
+    target_w = min(scaled_px(1800, scale), max_w)
+    target_h = min(scaled_px(1500, scale), max_h)
+    return max(min_w, target_w), max(min_h, target_h)
+
+
+def set_gui_scale(scale: float):
+    global GUI_SCALE
+    GUI_SCALE = max(0.65, min(1.0, scale))
+
+
+def ui_px(value: float, minimum: int = 1) -> int:
+    return scaled_px(value, GUI_SCALE, minimum=minimum)
+
+
+def current_screen_size() -> tuple[int, int]:
+    app = QApplication.instance()
+    screen = app.primaryScreen() if app is not None else None
+    if screen is None:
+        return 3840, 2160
+    rect = screen.availableGeometry()
+    return rect.width(), rect.height()
+
+
+def current_gui_scale() -> float:
+    width, height = current_screen_size()
+    return gui_scale_for_screen(width, height)
+
+
+def build_dark_style(scale: float = 1.0) -> str:
+    p = lambda value, minimum=1: scaled_px(value, scale, minimum=minimum)
+    return f"""
+* {{ font-size: {p(30)}px; font-family: "Segoe UI"; }}
+QMainWindow, QWidget {{ background-color: #1e1e1e; color: #d4d4d4; }}
+QGroupBox {{
+    border: 1px solid #3d3d3d; border-radius: {p(4)}px; margin-top: {p(10)}px;
+    padding-top: {p(14)}px; font-weight: bold;
+}}
+QGroupBox::title {{ subcontrol-origin: margin; left: {p(10)}px; padding: 0 {p(4)}px; }}
+QPushButton {{
     background-color: #0e639c; color: white; border: none;
-    padding: 8px 20px; border-radius: 3px; min-height: 32px;
-}
-QPushButton:hover { background-color: #1177bb; }
-QPushButton:pressed { background-color: #094771; }
-QPushButton:disabled { background-color: #3d3d3d; color: #808080; }
-QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {
+    padding: {p(8)}px {p(20)}px; border-radius: {p(3)}px; min-height: {p(32)}px;
+}}
+QPushButton:hover {{ background-color: #1177bb; }}
+QPushButton:pressed {{ background-color: #094771; }}
+QPushButton:disabled {{ background-color: #3d3d3d; color: #808080; }}
+QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {{
     background-color: #2d2d2d; border: 1px solid #3d3d3d;
-    border-radius: 3px; padding: 6px 10px; color: #d4d4d4;
-    min-height: 28px;
-}
-QListWidget {
+    border-radius: {p(3)}px; padding: {p(6)}px {p(10)}px; color: #d4d4d4;
+    min-height: {p(28)}px;
+}}
+QListWidget {{
     background-color: #252526; border: 1px solid #3d3d3d;
-    outline: none; font-size: 25px; font-weight: bold;
-}
-QListWidget::item { padding: 12px 16px; border-bottom: 1px solid #2d2d2d; }
-QListWidget::item:selected { background-color: #094771; color: white; }
-QListWidget::item:hover:!selected { background-color: #2a2d2e; }
-QListWidget::item:disabled { color: #666666; }
-QTextEdit {
+    outline: none; font-size: {p(25)}px; font-weight: bold;
+}}
+QListWidget::item {{ padding: {p(12)}px {p(16)}px; border-bottom: 1px solid #2d2d2d; }}
+QListWidget::item:selected {{ background-color: #094771; color: white; }}
+QListWidget::item:hover:!selected {{ background-color: #2a2d2e; }}
+QListWidget::item:disabled {{ color: #666666; }}
+QTextEdit {{
     background-color: #1e1e1e; border: 1px solid #3d3d3d;
-    color: #9cdcfe; font-family: Consolas, monospace; font-size: 25px;
-}
-QSlider::groove:horizontal {
-    background: #3d3d3d; height: 6px; border-radius: 3px;
-}
-QSlider::handle:horizontal {
-    background: #0e639c; width: 18px; margin: -6px 0; border-radius: 9px;
-}
-QCheckBox { spacing: 8px; }
-QCheckBox::indicator { width: 18px; height: 18px; }
-QProgressBar {
-    border: 1px solid #3d3d3d; border-radius: 3px;
+    color: #9cdcfe; font-family: Consolas, monospace; font-size: {p(25)}px;
+}}
+QSlider::groove:horizontal {{
+    background: #3d3d3d; height: {p(6)}px; border-radius: {p(3)}px;
+}}
+QSlider::handle:horizontal {{
+    background: #0e639c; width: {p(18)}px; margin: -{p(6)}px 0; border-radius: {p(9)}px;
+}}
+QCheckBox {{ spacing: {p(8)}px; }}
+QCheckBox::indicator {{ width: {p(18)}px; height: {p(18)}px; }}
+QProgressBar {{
+    border: 1px solid #3d3d3d; border-radius: {p(3)}px;
     background-color: #2d2d2d; text-align: center; color: white;
-    min-height: 24px;
-}
-QProgressBar::chunk { background-color: #0e639c; border-radius: 2px; }
-QLabel#title { font-size: 42px; font-weight: bold; color: #e0e0e0; }
-QLabel#info  { color: #808080; font-size: 33px; }
-QLabel#status_ok   { color: #4ec9b0; }
-QLabel#status_warn { color: #dcdcaa; }
+    min-height: {p(24)}px;
+}}
+QProgressBar::chunk {{ background-color: #0e639c; border-radius: {p(2)}px; }}
+QLabel#title {{ font-size: {p(42)}px; font-weight: bold; color: #e0e0e0; }}
+QLabel#info  {{ color: #808080; font-size: {p(33)}px; }}
+QLabel#status_ok   {{ color: #4ec9b0; }}
+QLabel#status_warn {{ color: #dcdcaa; }}
 """
+
+
+DARK_STYLE = build_dark_style(1.0)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Helpers
@@ -216,7 +272,7 @@ class ImageViewer(QLabel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setAlignment(Qt.AlignCenter)
-        self.setMinimumSize(128, 128)
+        self.setMinimumSize(ui_px(128), ui_px(128))
         self.setStyleSheet("background-color: #1e1e1e;")
         self._source: QPixmap | None = None
 
@@ -257,7 +313,7 @@ class AnnotationCanvas(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setMinimumSize(256, 256)
+        self.setMinimumSize(ui_px(256), ui_px(256))
         self._image: np.ndarray | None = None  # grayscale uint8
         self._mask: np.ndarray | None = None  # uint8 0/255
         self._brush_radius = 20
@@ -441,7 +497,7 @@ class QTextEditLogHandler(QObject, logging.Handler):
 class VideoPage(QWidget):
     """Step 1 — Load video, set save directory, inspect basic properties."""
 
-    video_loaded = pyqtSignal()  # emitted after a video is successfully loaded
+    video_loaded = pyqtSignal(object)  # optional config path after successful load
 
     def __init__(self, pupil: Pupil, parent=None):
         super().__init__(parent)
@@ -464,6 +520,9 @@ class VideoPage(QWidget):
         load_btn = QPushButton("Load")
         load_btn.clicked.connect(self._load)
         ctrl.addWidget(load_btn)
+        config_btn = QPushButton("Load Config...")
+        config_btn.clicked.connect(self._browse_config)
+        ctrl.addWidget(config_btn)
         layout.addLayout(ctrl)
 
         # save directory
@@ -485,7 +544,7 @@ class VideoPage(QWidget):
         # frame slider + play
         slider_row = QHBoxLayout()
         self.play_btn = QPushButton(">>")
-        self.play_btn.setFixedWidth(80)
+        self.play_btn.setFixedWidth(ui_px(80))
         self.play_btn.setEnabled(False)
         self.play_btn.clicked.connect(self._toggle_play)
         slider_row.addWidget(self.play_btn)
@@ -495,7 +554,7 @@ class VideoPage(QWidget):
         self.slider.valueChanged.connect(self._show_frame)
         slider_row.addWidget(self.slider, 1)
         self.frame_label = QLabel("0")
-        self.frame_label.setFixedWidth(60)
+        self.frame_label.setFixedWidth(ui_px(60))
         slider_row.addWidget(self.frame_label)
         layout.addLayout(slider_row)
 
@@ -542,6 +601,23 @@ class VideoPage(QWidget):
         if folder:
             self.save_dir_edit.setText(folder)
 
+    def _browse_config(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select Config", "", "Config Files (*.json);;All (*)"
+        )
+        if not path:
+            return
+        config_path = Path(path)
+        try:
+            video_path = self.pupil.load_from_config(config_path)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+            return
+
+        self.path_edit.setText(str(video_path))
+        self.save_dir_edit.setText(str(config_path.parent))
+        self._finish_loaded_video(str(config_path.parent), config_path=config_path)
+
     def _load(self):
         path = self.path_edit.text().strip()
         if not path:
@@ -561,6 +637,10 @@ class VideoPage(QWidget):
         self.pupil.output_dir.mkdir(parents=True, exist_ok=True)
 
         # Config is loaded in MainWindow._restore_from_config() after reset
+        self._finish_loaded_video(save_dir, config_path=None)
+
+    def _finish_loaded_video(self, save_dir: str, config_path: Path | None = None):
+        """Refresh the video preview UI after a video has been opened."""
         info = self.pupil.video_info
         self.info_label.setText(
             f"{info['n_frames']} frames  |  {info['fps']:.1f} fps  |  "
@@ -568,7 +648,8 @@ class VideoPage(QWidget):
         )
         # scale viewer to match video aspect ratio, fit within available space
         vw, vh = info["width"], info["height"]
-        max_h = 1200
+        _, screen_h = current_screen_size()
+        max_h = min(ui_px(1200), int(screen_h * 0.6))
         scale = min(max_h / vh, 1.0)
         self.viewer.set_max_display(int(vw * scale), int(vh * scale))
 
@@ -577,7 +658,7 @@ class VideoPage(QWidget):
         self.slider.setRange(0, info["n_frames"] - 1)
         self.slider.setValue(0)
         self._show_frame(0)
-        self.video_loaded.emit()
+        self.video_loaded.emit(config_path)
 
     def _show_frame(self, idx):
         self.frame_label.setText(str(idx))
@@ -657,13 +738,13 @@ class ROIPage(QWidget):
         self.contrast_slider = QSlider(Qt.Horizontal)
         self.contrast_slider.setRange(10, 100)  # 1.0 – 10.0 mapped
         self.contrast_slider.setValue(20)  # default 2.0
-        self.contrast_slider.setFixedWidth(180)
+        self.contrast_slider.setFixedWidth(ui_px(180))
         self.contrast_slider.setEnabled(False)
         self.contrast_slider.valueChanged.connect(self._on_contrast_changed)
         contrast_row.addWidget(self.contrast_slider)
 
         self.contrast_value_label = QLabel("2.0")
-        self.contrast_value_label.setFixedWidth(40)
+        self.contrast_value_label.setFixedWidth(ui_px(40))
         contrast_row.addWidget(self.contrast_value_label)
         contrast_row.addStretch()
         layout.addLayout(contrast_row)
@@ -845,7 +926,7 @@ class SingleDetectionPage(QWidget):
         # frame browser
         slider_row = QHBoxLayout()
         self.play_btn = QPushButton(">>")
-        self.play_btn.setFixedWidth(80)
+        self.play_btn.setFixedWidth(ui_px(80))
         self.play_btn.setEnabled(False)
         self.play_btn.clicked.connect(self._toggle_play)
         slider_row.addWidget(self.play_btn)
@@ -855,7 +936,7 @@ class SingleDetectionPage(QWidget):
         self.slider.valueChanged.connect(self._show_result)
         slider_row.addWidget(self.slider, 1)
         self.frame_info = QLabel("")
-        self.frame_info.setFixedWidth(120)
+        self.frame_info.setFixedWidth(ui_px(120))
         slider_row.addWidget(self.frame_info)
         layout.addLayout(slider_row)
 
@@ -864,7 +945,7 @@ class SingleDetectionPage(QWidget):
         if method == "unet":
             corr_row = QHBoxLayout()
             self.edit_mask_btn = QPushButton("Edit Mask")
-            self.edit_mask_btn.setFixedWidth(200)
+            self.edit_mask_btn.setFixedWidth(ui_px(200))
             self.edit_mask_btn.setEnabled(False)
             self.edit_mask_btn.clicked.connect(self._toggle_edit_mask)
             corr_row.addWidget(self.edit_mask_btn)
@@ -873,15 +954,15 @@ class SingleDetectionPage(QWidget):
             self.corr_brush_slider = QSlider(Qt.Horizontal)
             self.corr_brush_slider.setRange(1, 100)
             self.corr_brush_slider.setValue(20)
-            self.corr_brush_slider.setFixedWidth(150)
+            self.corr_brush_slider.setFixedWidth(ui_px(150))
             self.corr_brush_slider.valueChanged.connect(self._corr_brush_changed)
             corr_row.addWidget(self.corr_brush_slider)
             self.corr_brush_label = QLabel("20")
-            self.corr_brush_label.setFixedWidth(40)
+            self.corr_brush_label.setFixedWidth(ui_px(40))
             corr_row.addWidget(self.corr_brush_label)
 
             self.apply_mask_btn = QPushButton("Apply")
-            self.apply_mask_btn.setFixedWidth(150)
+            self.apply_mask_btn.setFixedWidth(ui_px(150))
             self.apply_mask_btn.setEnabled(False)
             self.apply_mask_btn.clicked.connect(self._apply_corrected_mask)
             corr_row.addWidget(self.apply_mask_btn)
@@ -1110,7 +1191,7 @@ class AnnotationPage(QWidget):
         left.addWidget(self.n_spin)
 
         self.prepare_btn = QPushButton("Prepare Frames")
-        self.prepare_btn.setMinimumHeight(36)
+        self.prepare_btn.setMinimumHeight(ui_px(36))
         self.prepare_btn.clicked.connect(self._prepare)
         left.addWidget(self.prepare_btn)
 
@@ -1127,11 +1208,11 @@ class AnnotationPage(QWidget):
         left.addSpacing(12)
         nav = QHBoxLayout()
         self.prev_btn = QPushButton("< Prev")
-        self.prev_btn.setMinimumHeight(36)
+        self.prev_btn.setMinimumHeight(ui_px(36))
         self.prev_btn.clicked.connect(self._prev)
         nav.addWidget(self.prev_btn)
         self.next_btn = QPushButton("Next >")
-        self.next_btn.setMinimumHeight(36)
+        self.next_btn.setMinimumHeight(ui_px(36))
         self.next_btn.clicked.connect(self._next)
         nav.addWidget(self.next_btn)
         left.addLayout(nav)
@@ -1142,7 +1223,7 @@ class AnnotationPage(QWidget):
 
         left.addSpacing(12)
         self.save_btn = QPushButton("Save All Masks")
-        self.save_btn.setMinimumHeight(36)
+        self.save_btn.setMinimumHeight(ui_px(36))
         self.save_btn.clicked.connect(self._save_all)
         left.addWidget(self.save_btn)
 
@@ -1153,7 +1234,7 @@ class AnnotationPage(QWidget):
 
         left_widget = QWidget()
         left_widget.setLayout(left)
-        left_widget.setFixedWidth(350)
+        left_widget.setFixedWidth(ui_px(350))
         layout.addWidget(left_widget)
 
         # right: annotation canvas
@@ -1511,8 +1592,8 @@ class TrainingPage(QWidget):
         ))
 
         self.data_list = QListWidget()
-        self.data_list.setMinimumHeight(80)
-        self.data_list.setMaximumHeight(150)
+        self.data_list.setMinimumHeight(ui_px(80))
+        self.data_list.setMaximumHeight(ui_px(150))
         data_layout.addWidget(self.data_list)
 
         self.data_info_label = QLabel("")
@@ -1590,12 +1671,12 @@ class TrainingPage(QWidget):
         # --- Action buttons + status ---
         btn_row = QHBoxLayout()
         self.train_btn = QPushButton("Start Training")
-        self.train_btn.setMinimumHeight(36)
+        self.train_btn.setMinimumHeight(ui_px(36))
         self.train_btn.clicked.connect(self._start)
         btn_row.addWidget(self.train_btn)
 
         self.test_btn = QPushButton("Test U-Net Inference")
-        self.test_btn.setMinimumHeight(36)
+        self.test_btn.setMinimumHeight(ui_px(36))
         self.test_btn.setEnabled(False)
         self.test_btn.clicked.connect(self._test_infer)
         btn_row.addWidget(self.test_btn)
@@ -1765,10 +1846,20 @@ class TrainingPage(QWidget):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, video_path: str | None = None, output_dir: str = "./output"):
+    def __init__(
+        self,
+        video_path: str | None = None,
+        output_dir: str = "./output",
+        ui_scale: float | None = None,
+    ):
         super().__init__()
+        self.ui_scale = ui_scale if ui_scale is not None else current_gui_scale()
+        set_gui_scale(self.ui_scale)
         self.setWindowTitle("Pupil Track GUI")
-        self.resize(1800, 1500)
+        screen_w, screen_h = current_screen_size()
+        win_w, win_h = window_size_for_screen(screen_w, screen_h, self.ui_scale)
+        self.resize(win_w, win_h)
+        self.setMinimumSize(min(ui_px(1100), screen_w), min(ui_px(750), screen_h))
 
         self.pupil = Pupil(output_dir=output_dir)
 
@@ -1787,7 +1878,7 @@ class MainWindow(QMainWindow):
 
         # step list
         self.step_list = QListWidget()
-        self.step_list.setFixedWidth(300)
+        self.step_list.setFixedWidth(ui_px(300))
         steps = [
             "1. Video I/O",
             "2. ROI Selection",
@@ -1821,7 +1912,12 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(self.postprocess_page)  # 5
         self.stack.addWidget(self.annotation_page)   # 6
         self.stack.addWidget(self.training_page)     # 7
-        top.addWidget(self.stack)
+        self.page_scroll = QScrollArea()
+        self.page_scroll.setWidgetResizable(True)
+        self.page_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.page_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.page_scroll.setWidget(self.stack)
+        top.addWidget(self.page_scroll)
         top.setStretchFactor(1, 1)
 
         # wire contrast enhancement from ROIPage to all pages
@@ -1838,7 +1934,7 @@ class MainWindow(QMainWindow):
         # bottom: log
         self.log_widget = QTextEdit()
         self.log_widget.setReadOnly(True)
-        self.log_widget.setMaximumHeight(140)
+        self.log_widget.setMaximumHeight(ui_px(140))
         splitter.addWidget(self.log_widget)
         splitter.setStretchFactor(0, 1)
 
@@ -1865,7 +1961,7 @@ class MainWindow(QMainWindow):
     def _switch_page(self, row):
         self.stack.setCurrentIndex(row)
 
-    def _on_video_loaded(self):
+    def _on_video_loaded(self, config_path=None):
         """Enable steps 2–5 and reset/restore downstream state."""
         # enable step list items (indices 1–6)
         for i in range(1, 7):
@@ -1883,20 +1979,24 @@ class MainWindow(QMainWindow):
         # clear log console
         self.log_widget.clear()
 
-        # Restore UI from config loaded in VideoPage._load()
+        # Restore UI from the selected config or the default per-video config.
         # (load_config sets pupil.roi, pupil.masks, pupil.model_path
         #  but reset() cleared them — re-apply from config)
-        self._restore_from_config()
+        self._restore_from_config(config_path)
 
         self.statusBar().showMessage("Video loaded — ready")
 
-    def _restore_from_config(self):
+    def _restore_from_config(self, config_path=None):
         """Re-load config for the current video and restore UI state.
 
         Called after reset() has cleared all pages.  If no config file
         exists for this video, nothing happens and the UI stays blank.
         """
-        config_path = self.pupil.output_dir / f"{self.pupil.video_stem}_config.json"
+        config_path = (
+            Path(config_path)
+            if config_path is not None
+            else self.pupil.output_dir / f"{self.pupil.video_stem}_config.json"
+        )
         if not config_path.exists():
             return
 
@@ -1964,7 +2064,9 @@ def launch_gui(video_path: str | None = None, output_dir: str = "./output"):
     """Launch the PupilTrack GUI application."""
     # logger.info("launch_gui() called  video=%s  output_dir=%s", video_path, output_dir)  # debug
     app = QApplication(sys.argv)
-    app.setStyleSheet(DARK_STYLE)
-    window = MainWindow(video_path=video_path, output_dir=output_dir)
+    ui_scale = current_gui_scale()
+    set_gui_scale(ui_scale)
+    app.setStyleSheet(build_dark_style(ui_scale))
+    window = MainWindow(video_path=video_path, output_dir=output_dir, ui_scale=ui_scale)
     window.show()
     sys.exit(app.exec_())

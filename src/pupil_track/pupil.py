@@ -128,6 +128,7 @@ class Pupil:
         """Open a video file."""
         if self._reader is not None:
             self._reader.close()
+        self._cached_full_frames = None
         self._reader = VideoReader(str(path))
         logger.info(
             "Loaded video: %s (%d frames, %.1f fps, %dx%d)",
@@ -551,6 +552,26 @@ class Pupil:
                     logger.info("Loaded masks from %s (%d frames)", npy, len(loaded))
                 except Exception as e:
                     logger.warning("Failed to load masks: %s", e)
+
+    def load_from_config(self, path: str | Path) -> Path:
+        """Load a config JSON, open its referenced video, and restore pipeline state."""
+        config_path = Path(path)
+        config = Config.load(config_path)
+        if not config.data_path:
+            raise ValueError(f"Config is missing data.path: {config_path}")
+
+        video_path = Path(config.data_path)
+        if not video_path.is_absolute():
+            video_path = config_path.parent / video_path
+        video_path = video_path.resolve()
+        if not video_path.exists():
+            raise FileNotFoundError(f"Video file from config not found: {video_path}")
+
+        self.output_dir = config_path.parent
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.load_video(video_path)
+        self.load_config(config_path)
+        return video_path
 
     # ── Cleanup ──────────────────────────────────────────────────────────
 
